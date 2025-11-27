@@ -1,0 +1,33 @@
+Screen {
+    layout: vertical;
+}
+
+Header {
+    dock: top;
+    height: 1;
+    background: $primary;
+    color: $text;
+}
+
+Footer {
+    dock: bottom;
+    height: 1;
+}
+
+#output-container {
+    height: 1fr;
+    border: solid green;
+    overflow-y: scroll;
+    scrollbar-size: 1 1;
+}
+
+.output-line {
+    padding: 0 1;
+}
+
+#command-input {
+    dock: bottom;
+    border: solid $accent;
+    height: 3;
+    margin: 0 0;
+}
