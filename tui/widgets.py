@@ -8,6 +8,8 @@ class HistoryInput(Input):
     BINDINGS = [
         Binding("up", "history_up", "History Up"),
         Binding("down", "history_down", "History Down"),
+        Binding("ctrl+f", "fix_last_error", "Fix Error"),
+        Binding("ctrl+e", "explain_last_command", "Explain Command"),
     ]
 
     def __init__(self, *args, **kwargs):

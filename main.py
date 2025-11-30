@@ -3,8 +3,9 @@ from textual.widgets import Header, Footer, Static
 from tui.widgets import HistoryInput
 from textual.containers import VerticalScroll
 from textual import work
+from textual.binding import Binding
 from utils.commander import execute_command
-from utils.ai import get_command_suggestion
+from utils.ai import get_provider
 from utils.history import HistoryManager
 from utils.config import ConfigManager
 import os
@@ -13,6 +14,11 @@ class TerminalApp(App):
     """A simple AI-powered terminal app."""
 
     CSS_PATH = "main.tcss"
+    
+    BINDINGS = [
+        Binding("ctrl+f", "fix_last_error", "Fix Error"),
+        Binding("ctrl+e", "explain_last_command", "Explain Command"),
+    ]
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -22,13 +28,20 @@ class TerminalApp(App):
 
     def on_mount(self) -> None:
         """Called when app starts."""
-        self.title = "AI Terminal (Phase 2)"
+        self.title = "ImarTTY"
         
         # Initialize managers
         self.config_manager = ConfigManager()
         self.history_manager = HistoryManager(
             db_path=self.config_manager.get("history_file")
         )
+        
+        # Initialize AI Provider
+        self.ai_provider = get_provider(self.config_manager.get("ai_provider", "gemini"))
+        
+        self.last_command = ""
+        self.last_error = ""
+        self.last_exit_code = 0
         
         # Load initial history
         self.update_history_widget()
@@ -82,7 +95,7 @@ class TerminalApp(App):
     @work(exclusive=True, thread=True)
     def run_ai_query(self, query: str) -> None:
         """Runs the AI query in a background thread worker."""
-        suggestion = get_command_suggestion(query)
+        suggestion = self.ai_provider.get_command_suggestion(query)
         self.call_from_thread(self.update_input_with_suggestion, suggestion)
 
     def update_input_with_suggestion(self, command: str) -> None:
@@ -109,6 +122,10 @@ class TerminalApp(App):
         # Save to history
         self.history_manager.add_entry(command, exit_code, full_output)
         self.update_history_widget()
+        
+        self.last_command = command
+        self.last_exit_code = exit_code
+        self.last_error = full_output if exit_code != 0 else ""
 
         if exit_code != 0:
             error_msg = f"Command failed with exit code {exit_code}"
@@ -133,6 +150,36 @@ class TerminalApp(App):
             history_text += f"{status} {row[1]}\n"
             
         output_container.mount(Static(history_text, classes="output-line"))
+        output_container.scroll_end(animate=False)
+
+    @work(exclusive=True, thread=True)
+    def action_fix_last_error(self) -> None:
+        """Ask AI to fix the last error."""
+        if self.last_exit_code == 0 or not self.last_error:
+            self.notify("No recent error to fix.")
+            return
+
+        self.notify("Asking AI for a fix...")
+        suggestion = self.ai_provider.fix_command(self.last_command, self.last_error)
+        self.call_from_thread(self.update_input_with_suggestion, suggestion)
+
+    @work(exclusive=True, thread=True)
+    def action_explain_last_command(self) -> None:
+        """Ask AI to explain the last command."""
+        if not self.last_command:
+            self.notify("No command run yet.")
+            return
+
+        self.notify("Asking AI for explanation...")
+        explanation = self.ai_provider.explain_command(self.last_command)
+        
+        self.call_from_thread(self.show_explanation, explanation)
+
+    def show_explanation(self, explanation: str) -> None:
+        """Show explanation in the output."""
+        output_container = self.query_one("#output-container", VerticalScroll)
+        panel = f"[bold yellow]AI Explanation:[/bold yellow]\n{explanation}\n"
+        output_container.mount(Static(panel, classes="output-line"))
         output_container.scroll_end(animate=False)
 
 if __name__ == "__main__":

@@ -64,6 +64,10 @@ To use the AI features, simply start your command with a question mark `?`:
 
 The AI will populate the input box with the suggested command (e.g., `git reset --soft HEAD~1`). You can then review it and press **Enter** to execute.
 
+### AI Shortcuts
+- **Ctrl+F**: **Fix Error**. If a command fails, press this to ask AI for a fix.
+- **Ctrl+E**: **Explain Command**. Press this to get an explanation of the last executed command.
+
 ### History
 - Press **Up/Down** arrows to cycle through previous commands.
 - Type `/history` to see a list of recent commands with their exit status.
