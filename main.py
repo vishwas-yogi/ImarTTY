@@ -1,30 +1,51 @@
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Input, Static
+from textual.widgets import Header, Footer, Static
+from tui.widgets import HistoryInput
 from textual.containers import VerticalScroll
 from textual import work
 from utils.commander import execute_command
 from utils.ai import get_command_suggestion
+from utils.history import HistoryManager
+from utils.config import ConfigManager
 import os
 
 class TerminalApp(App):
     """A simple AI-powered terminal app."""
 
-    CSS_PATH = "main.css"
+    CSS_PATH = "main.tcss"
 
     def compose(self) -> ComposeResult:
         yield Header()
         yield VerticalScroll(id="output-container")
-        yield Input(placeholder="Type your command here... (Start with ? for AI)", id="command-input")
+        yield HistoryInput(placeholder="Type your command here... (Start with ? for AI)", id="command-input")
         yield Footer()
 
     def on_mount(self) -> None:
         """Called when app starts."""
         self.title = "AI Terminal (Phase 2)"
-        self.query_one(Input).focus()
+        
+        # Initialize managers
+        self.config_manager = ConfigManager()
+        self.history_manager = HistoryManager(
+            db_path=self.config_manager.get("history_file")
+        )
+        
+        # Load initial history
+        self.update_history_widget()
+        
+        self.query_one(HistoryInput).focus()
 
-    async def on_input_submitted(self, event: Input.Submitted) -> None:
+    def update_history_widget(self):
+        """Load recent commands into the input widget."""
+        recent = self.history_manager.get_recent(limit=50)
+        # get_recent returns (id, command, timestamp, exit_code)
+        # We just want the command strings
+        commands = [row[1] for row in recent]
+        self.query_one(HistoryInput).set_history(commands)
+
+    async def on_input_submitted(self, event: HistoryInput.Submitted) -> None:
         command = event.value
-        input_widget = self.query_one("#command-input", Input)
+        input_widget = self.query_one("#command-input", HistoryInput)
         output_container = self.query_one("#output-container", VerticalScroll)
 
         if not command.strip():
@@ -37,6 +58,12 @@ class TerminalApp(App):
                 input_widget.value = "Thinking..."
                 input_widget.disabled = True
                 self.run_ai_query(query)
+            return
+
+        # Handle /history command
+        if command.strip() == "/history":
+            input_widget.value = ""
+            self.show_history()
             return
 
         # Clear input
@@ -60,7 +87,7 @@ class TerminalApp(App):
 
     def update_input_with_suggestion(self, command: str) -> None:
         """Updates the input widget with the AI's suggestion."""
-        input_widget = self.query_one("#command-input", Input)
+        input_widget = self.query_one("#command-input", HistoryInput)
         input_widget.disabled = False
         input_widget.value = command
         input_widget.focus()
@@ -77,13 +104,36 @@ class TerminalApp(App):
         async def update_output(text: str) -> None:
             self.append_text(output_widget, text, output_container)
 
-        await execute_command(command, update_output)
+        exit_code, full_output = await execute_command(command, update_output)
+        
+        # Save to history
+        self.history_manager.add_entry(command, exit_code, full_output)
+        self.update_history_widget()
+
+        if exit_code != 0:
+            error_msg = f"Command failed with exit code {exit_code}"
+            output_container.mount(Static(error_msg, classes="error-widget"))
+            output_container.scroll_end(animate=False)
 
     def append_text(self, widget: Static, text: str, container: VerticalScroll) -> None:
         """Appends text to the widget and scrolls."""
         widget.user_text += text
         widget.update(widget.user_text)
         container.scroll_end(animate=False)
+
+    def show_history(self):
+        """Display history in the output."""
+        output_container = self.query_one("#output-container", VerticalScroll)
+        recent = self.history_manager.get_recent(limit=20)
+        
+        history_text = "[bold blue]Recent History:[/bold blue]\n"
+        for row in reversed(recent):
+            # row: (id, command, timestamp, exit_code)
+            status = "[green]✓[/green]" if row[3] == 0 else "[red]✗[/red]"
+            history_text += f"{status} {row[1]}\n"
+            
+        output_container.mount(Static(history_text, classes="output-line"))
+        output_container.scroll_end(animate=False)
 
 if __name__ == "__main__":
     app = TerminalApp()
