@@ -7,8 +7,12 @@ from textual.binding import Binding
 from utils.commander import execute_command
 from utils.ai import get_provider
 from utils.history import HistoryManager
+from utils.history import HistoryManager
 from utils.config import ConfigManager
+from utils.logger import setup_logging, get_logger
 import os
+
+logger = get_logger("main")
 
 class TerminalApp(App):
     """A simple AI-powered terminal app."""
@@ -28,7 +32,9 @@ class TerminalApp(App):
 
     def on_mount(self) -> None:
         """Called when app starts."""
-        self.title = "ImarTTY"
+        setup_logging()
+        logger.info("Application started")
+        self.title = "AI Terminal (Phase 2)"
         
         # Initialize managers
         self.config_manager = ConfigManager()
@@ -63,6 +69,8 @@ class TerminalApp(App):
 
         if not command.strip():
             return
+
+        logger.info(f"Input submitted: {command}")
 
         # Check for AI trigger
         if command.startswith("?"):
@@ -122,6 +130,8 @@ class TerminalApp(App):
         # Save to history
         self.history_manager.add_entry(command, exit_code, full_output)
         self.update_history_widget()
+        
+        logger.info(f"Command executed: {command}, Exit Code: {exit_code}")
         
         self.last_command = command
         self.last_exit_code = exit_code

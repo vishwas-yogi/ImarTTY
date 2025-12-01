@@ -3,8 +3,10 @@ import os
 import google.generativeai as genai
 from dotenv import load_dotenv
 import requests
+from utils.logger import get_logger
 
 load_dotenv()
+logger = get_logger("ai")
 
 class AIProvider(ABC):
     @abstractmethod
@@ -23,8 +25,7 @@ class GeminiProvider(AIProvider):
     def __init__(self):
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            # We might want to handle this gracefully, but for now let's print or log
-            print("Warning: GEMINI_API_KEY not found in .env")
+            logger.warning("GEMINI_API_KEY not found in .env")
         else:
             genai.configure(api_key=api_key)
             self.model = genai.GenerativeModel('gemini-flash-latest')
@@ -40,9 +41,11 @@ class GeminiProvider(AIProvider):
             f"Request: {query}"
         )
         try:
+            logger.info(f"Gemini suggestion requested for: {query}")
             response = self.model.generate_content(prompt)
             return response.text.strip()
         except Exception as e:
+            logger.error(f"Gemini error: {e}")
             return f"Error calling Gemini API: {str(e)}"
 
     def fix_command(self, command: str, error_output: str) -> str:
@@ -56,9 +59,11 @@ class GeminiProvider(AIProvider):
             "Return ONLY the corrected command, no markdown, no explanations."
         )
         try:
+            logger.info(f"Gemini fix requested for command: {command}")
             response = self.model.generate_content(prompt)
             return response.text.strip()
         except Exception as e:
+            logger.error(f"Gemini error: {e}")
             return f"Error calling Gemini API: {str(e)}"
 
     def explain_command(self, command: str) -> str:
@@ -71,9 +76,11 @@ class GeminiProvider(AIProvider):
             "Explain what it does and what the flags mean."
         )
         try:
+            logger.info(f"Gemini explanation requested for command: {command}")
             response = self.model.generate_content(prompt)
             return response.text.strip()
         except Exception as e:
+            logger.error(f"Gemini error: {e}")
             return f"Error calling Gemini API: {str(e)}"
 
 class OllamaProvider(AIProvider):
@@ -83,6 +90,7 @@ class OllamaProvider(AIProvider):
 
     def _generate(self, prompt: str) -> str:
         try:
+            logger.info(f"Ollama request (model={self.model_name})")
             response = requests.post(self.api_url, json={
                 "model": self.model_name,
                 "prompt": prompt,
@@ -90,8 +98,11 @@ class OllamaProvider(AIProvider):
             })
             if response.status_code == 200:
                 return response.json().get("response", "").strip()
+            
+            logger.error(f"Ollama error status: {response.status_code}")
             return f"Error: Ollama returned status {response.status_code}"
         except Exception as e:
+            logger.error(f"Ollama exception: {e}")
             return f"Error calling Ollama: {str(e)}"
 
     def get_command_suggestion(self, query: str) -> str:

@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "imartty"
+version = "0.1.0"
+description = "AI-powered terminal emulator with Textual and Gemini"
+readme = "README.md"
+authors = [
+  { name = "Vishwas Yogi", email = "vishwas.yogi@example.com" },
+]
+license = { file = "LICENSE" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+]
+keywords = ["terminal", "ai", "gemini", "textual", "tui"]
+dependencies = [
+    "textual>=0.70.0",
+    "google-generativeai>=0.7.0",
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0.0",
+    "requests>=2.31.0",
+]
+requires-python = ">=3.10"
+
+[project.scripts]
+imartty = "main:app.run"
+
+[project.urls]
+"Homepage" = "https://github.com/vishwas-yogi/ImarTTY"
+"Bug Tracker" = "https://github.com/vishwas-yogi/ImarTTY/issues"
+
+[tool.setuptools]
+py-modules = ["main"]
+packages = ["tui", "utils"]
