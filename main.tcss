@@ -31,3 +31,11 @@ Footer {
     height: 3;
     margin: 0 0;
 }
+
+.error-widget {
+    background: $error 10%;
+    border-left: solid $error;
+    padding: 0 1;
+    color: $error-lighten-2;
+    margin-top: 1;
+}

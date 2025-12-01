@@ -7,40 +7,57 @@ A modern, AI-powered terminal emulator built with Python and Textual. This proje
 ## Features
 
 -   **Standard Terminal Capabilities**: Execute shell commands (`ls`, `grep`, `git`, etc.) with real-time streaming output.
+-   **Persistent History**: Commands are saved across sessions. Use **Up/Down** arrows to navigate or type `/history` to view recent commands.
 -   **Built-in Navigation**: Supports `cd` to navigate directories and `exit` to close the session.
 -   **AI Command Suggestions**: Type `? <query>` to ask the AI for a command (e.g., `? find all large files`).
 -   **Modern TUI**: Built on [Textual](https://textual.textualize.io/) for a rich, responsive terminal user interface.
 
 ## Installation
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/yourusername/imarTty.git
-    cd imarTty
-    ```
+You can install ImarTTY directly from the source:
 
-2.  **Set up a virtual environment (Recommended):**
-    ```bash
-    python3 -m venv .venv
-    source .venv/bin/activate
-    ```
+```bash
+git clone https://github.com/yourusername/imarTty.git
+cd imarTty
+pip install .
+```
 
-3.  **Install dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
+Alternatively, for development:
 
-4.  **Configure API Key:**
-    Create a `.env` file in the root directory and add your Google Gemini API key:
-    ```env
-    GEMINI_API_KEY=your_api_key_here
-    ```
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+## Configuration
+
+Create a `.env` file for your API keys:
+```env
+GEMINI_API_KEY=your_api_key_here
+```
+
+Customize the app via `config.yaml`:
+
+```yaml
+theme: default
+ai_provider: gemini  # Options: gemini, ollama
+history_file: ~/.imartty_history.db
+```
+
+### Local LLM (Ollama)
+To use a local model like Llama 3:
+1. Install [Ollama](https://ollama.com/).
+2. Run `ollama run llama3`.
+3. Set `ai_provider: ollama` in `config.yaml`.
 
 ## Usage
 
 Run the application:
 
 ```bash
+imartty
+# OR if running from source
 python main.py
 ```
 
@@ -53,9 +70,29 @@ To use the AI features, simply start your command with a question mark `?`:
 
 The AI will populate the input box with the suggested command (e.g., `git reset --soft HEAD~1`). You can then review it and press **Enter** to execute.
 
+### AI Shortcuts
+- **Ctrl+F**: **Fix Error**. If a command fails, press this to ask AI for a fix.
+- **Ctrl+E**: **Explain Command**. Press this to get an explanation of the last executed command.
+
+### History
+- Press **Up/Down** arrows to cycle through previous commands.
+- Type `/history` to see a list of recent commands with their exit status.
+
+## Development
+
+### Running Tests
+```bash
+pytest
+```
+
+### Logging
+Logs are written to `imartty.log` in JSON format for easy parsing and debugging.
+
 ## Tech Stack
 
 -   **Python 3.12+**
 -   **Textual**: TUI framework.
--   **Google Generative AI**: LLM for command translation.
+-   **Google Generative AI / Ollama**: LLM providers.
 -   **Asyncio**: For non-blocking command execution and UI updates.
+-   **SQLite**: For persistent command history.
+
