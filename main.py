@@ -10,6 +10,7 @@ from utils.history import HistoryManager
 from utils.history import HistoryManager
 from utils.config import ConfigManager
 from utils.logger import setup_logging, get_logger
+from utils.context import ContextManager
 import os
 
 logger = get_logger("main")
@@ -41,6 +42,7 @@ class TerminalApp(App):
         self.history_manager = HistoryManager(
             db_path=self.config_manager.get("history_file")
         )
+        self.context_manager = ContextManager()
         
         # Initialize AI Provider
         self.ai_provider = get_provider(self.config_manager.get("ai_provider", "gemini"))
@@ -103,7 +105,8 @@ class TerminalApp(App):
     @work(exclusive=True, thread=True)
     def run_ai_query(self, query: str) -> None:
         """Runs the AI query in a background thread worker."""
-        suggestion = self.ai_provider.get_command_suggestion(query)
+        context = self.context_manager.get_project_context(os.getcwd())
+        suggestion = self.ai_provider.get_command_suggestion(query, context)
         self.call_from_thread(self.update_input_with_suggestion, suggestion)
 
     def update_input_with_suggestion(self, command: str) -> None:
@@ -170,7 +173,8 @@ class TerminalApp(App):
             return
 
         self.notify("Asking AI for a fix...")
-        suggestion = self.ai_provider.fix_command(self.last_command, self.last_error)
+        context = self.context_manager.get_project_context(os.getcwd())
+        suggestion = self.ai_provider.fix_command(self.last_command, self.last_error, context)
         self.call_from_thread(self.update_input_with_suggestion, suggestion)
 
     @work(exclusive=True, thread=True)
@@ -181,7 +185,8 @@ class TerminalApp(App):
             return
 
         self.notify("Asking AI for explanation...")
-        explanation = self.ai_provider.explain_command(self.last_command)
+        context = self.context_manager.get_project_context(os.getcwd())
+        explanation = self.ai_provider.explain_command(self.last_command, context)
         
         self.call_from_thread(self.show_explanation, explanation)
 

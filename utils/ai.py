@@ -10,15 +10,15 @@ logger = get_logger("ai")
 
 class AIProvider(ABC):
     @abstractmethod
-    def get_command_suggestion(self, query: str) -> str:
+    def get_command_suggestion(self, query: str, context: str = "") -> str:
         pass
 
     @abstractmethod
-    def fix_command(self, command: str, error_output: str) -> str:
+    def fix_command(self, command: str, error_output: str, context: str = "") -> str:
         pass
     
     @abstractmethod
-    def explain_command(self, command: str) -> str:
+    def explain_command(self, command: str, context: str = "") -> str:
         pass
 
 class GeminiProvider(AIProvider):
@@ -30,16 +30,23 @@ class GeminiProvider(AIProvider):
             genai.configure(api_key=api_key)
             self.model = genai.GenerativeModel('gemini-flash-latest')
 
-    def get_command_suggestion(self, query: str) -> str:
+    def _build_prompt(self, base_prompt: str, context: str) -> str:
+        if context:
+            return f"[Context]\n{context}\n\n[Request]\n{base_prompt}"
+        return base_prompt
+
+    def get_command_suggestion(self, query: str, context: str = "") -> str:
         if not hasattr(self, 'model'):
             return "Error: Gemini API key not configured."
             
-        prompt = (
+        base_prompt = (
             "You are a shell command expert. Translate the user's request into a single, "
             "executable shell command for Linux. Return ONLY the command, no markdown, "
             "no explanations, no code blocks. "
             f"Request: {query}"
         )
+        prompt = self._build_prompt(base_prompt, context)
+        
         try:
             logger.info(f"Gemini suggestion requested for: {query}")
             response = self.model.generate_content(prompt)
@@ -48,16 +55,18 @@ class GeminiProvider(AIProvider):
             logger.error(f"Gemini error: {e}")
             return f"Error calling Gemini API: {str(e)}"
 
-    def fix_command(self, command: str, error_output: str) -> str:
+    def fix_command(self, command: str, error_output: str, context: str = "") -> str:
         if not hasattr(self, 'model'):
             return "Error: Gemini API key not configured."
 
-        prompt = (
+        base_prompt = (
             f"The command `{command}` failed with the following error:\n"
             f"{error_output}\n"
             "Provide a corrected shell command to fix this error. "
             "Return ONLY the corrected command, no markdown, no explanations."
         )
+        prompt = self._build_prompt(base_prompt, context)
+
         try:
             logger.info(f"Gemini fix requested for command: {command}")
             response = self.model.generate_content(prompt)
@@ -66,15 +75,17 @@ class GeminiProvider(AIProvider):
             logger.error(f"Gemini error: {e}")
             return f"Error calling Gemini API: {str(e)}"
 
-    def explain_command(self, command: str) -> str:
+    def explain_command(self, command: str, context: str = "") -> str:
         if not hasattr(self, 'model'):
             return "Error: Gemini API key not configured."
 
-        prompt = (
+        base_prompt = (
             f"Explain the following shell command concisely:\n"
             f"`{command}`\n"
             "Explain what it does and what the flags mean."
         )
+        prompt = self._build_prompt(base_prompt, context)
+
         try:
             logger.info(f"Gemini explanation requested for command: {command}")
             response = self.model.generate_content(prompt)
@@ -105,31 +116,36 @@ class OllamaProvider(AIProvider):
             logger.error(f"Ollama exception: {e}")
             return f"Error calling Ollama: {str(e)}"
 
-    def get_command_suggestion(self, query: str) -> str:
-        prompt = (
+    def _build_prompt(self, base_prompt: str, context: str) -> str:
+        if context:
+            return f"[Context]\n{context}\n\n[Request]\n{base_prompt}"
+        return base_prompt
+
+    def get_command_suggestion(self, query: str, context: str = "") -> str:
+        base_prompt = (
             "You are a shell command expert. Translate the user's request into a single, "
             "executable shell command for Linux. Return ONLY the command, no markdown, "
             "no explanations, no code blocks. "
             f"Request: {query}"
         )
-        return self._generate(prompt)
+        return self._generate(self._build_prompt(base_prompt, context))
 
-    def fix_command(self, command: str, error_output: str) -> str:
-        prompt = (
+    def fix_command(self, command: str, error_output: str, context: str = "") -> str:
+        base_prompt = (
             f"The command `{command}` failed with the following error:\n"
             f"{error_output}\n"
             "Provide a corrected shell command to fix this error. "
             "Return ONLY the corrected command, no markdown, no explanations."
         )
-        return self._generate(prompt)
+        return self._generate(self._build_prompt(base_prompt, context))
 
-    def explain_command(self, command: str) -> str:
-        prompt = (
+    def explain_command(self, command: str, context: str = "") -> str:
+        base_prompt = (
             f"Explain the following shell command concisely:\n"
             f"`{command}`\n"
             "Explain what it does and what the flags mean."
         )
-        return self._generate(prompt)
+        return self._generate(self._build_prompt(base_prompt, context))
 
 def get_provider(provider_name: str) -> AIProvider:
     if provider_name.lower() == "ollama":
