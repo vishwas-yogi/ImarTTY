@@ -6,18 +6,18 @@ ImarTTY is designed as a modular, event-driven terminal emulator. It separates t
 
 ```mermaid
 graph TD
-    User[User] --> TUI[Textual TUI (main.py)]
-    TUI --> Commander[Commander (utils/commander.py)]
-    TUI --> AI[AI Provider (utils/ai.py)]
-    TUI --> History[History Manager (utils/history.py)]
+    User[User] --> TUI["Textual TUI (main.py)"]
+    TUI --> Commander["Commander (utils/commander.py)"]
+    TUI --> AI["AI Provider (utils/ai.py)"]
+    TUI --> History["History Manager (utils/history.py)"]
     
     Commander --> Shell[System Shell]
     AI --> Gemini[Google Gemini API]
     AI --> Ollama[Ollama Local API]
     
     subgraph "Phase 2: Intelligence Layer"
-        Context[Context Manager (utils/context.py)]
-        Analyzer[Log Analyzer (utils/log_analyzer.py)]
+        Context["Context Manager (utils/context.py)"]
+        Analyzer["Log Analyzer (utils/log_analyzer.py)"]
     end
     
     TUI --> Context
