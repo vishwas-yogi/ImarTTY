@@ -3,20 +3,35 @@ import os
 import shlex
 from typing import Callable, Awaitable
 
-async def execute_command(command: str, output_callback: Callable[[str], Awaitable[None]]) -> tuple[int, str]:
+async def execute_command(command: str, output_callback: Callable[[str], Awaitable[None]], max_buffer_size: int = 1024 * 1024) -> tuple[int, str]:
     """
     Executes a shell command and streams the output to the callback.
     Handles built-in commands like 'cd' and 'exit'.
     Returns (exit_code, full_output).
+    full_output is truncated to the last max_buffer_size bytes if it exceeds the limit.
     """
     command = command.strip()
     if not command:
         return 0, ""
 
     full_output = []
+    current_size = 0
 
     async def wrapped_callback(text: str):
+        nonlocal current_size
         full_output.append(text)
+        current_size += len(text)
+        
+        # Simple truncation strategy: if we exceed 2x buffer, slice to 1x buffer
+        # This avoids slicing on every append
+        if current_size > max_buffer_size * 2:
+            # Reconstruct string to slice correctly
+            temp_str = "".join(full_output)
+            temp_str = temp_str[-max_buffer_size:]
+            full_output.clear()
+            full_output.append(temp_str)
+            current_size = len(temp_str)
+            
         await output_callback(text)
 
     # Handle built-in commands
@@ -66,7 +81,13 @@ async def execute_command(command: str, output_callback: Callable[[str], Awaitab
         )
 
         await process.wait()
-        return process.returncode, "".join(full_output)
+        
+        # Final truncation check
+        final_str = "".join(full_output)
+        if len(final_str) > max_buffer_size:
+            final_str = final_str[-max_buffer_size:]
+            
+        return process.returncode, final_str
 
     except Exception as e:
         msg = f"Error executing command: {str(e)}\n"

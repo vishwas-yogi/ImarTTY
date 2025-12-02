@@ -21,6 +21,10 @@ class AIProvider(ABC):
     def explain_command(self, command: str, context: str = "") -> str:
         pass
 
+    @abstractmethod
+    def analyze_log(self, log_content: str, query: str = "") -> str:
+        pass
+
 class GeminiProvider(AIProvider):
     def __init__(self):
         api_key = os.getenv("GEMINI_API_KEY")
@@ -94,6 +98,24 @@ class GeminiProvider(AIProvider):
             logger.error(f"Gemini error: {e}")
             return f"Error calling Gemini API: {str(e)}"
 
+    def analyze_log(self, log_content: str, query: str = "") -> str:
+        if not hasattr(self, 'model'):
+            return "Error: Gemini API key not configured."
+
+        prompt = (
+            f"Analyze the following log excerpt and identify the root cause of the error.\n"
+            f"Query: {query}\n\n"
+            f"Log Content:\n{log_content}\n\n"
+            "Provide a concise summary of the error and a potential fix."
+        )
+        try:
+            logger.info(f"Gemini log analysis requested")
+            response = self.model.generate_content(prompt)
+            return response.text.strip()
+        except Exception as e:
+            logger.error(f"Gemini error: {e}")
+            return f"Error calling Gemini API: {str(e)}"
+
 class OllamaProvider(AIProvider):
     def __init__(self, model_name="llama3"):
         self.model_name = model_name
@@ -146,6 +168,15 @@ class OllamaProvider(AIProvider):
             "Explain what it does and what the flags mean."
         )
         return self._generate(self._build_prompt(base_prompt, context))
+
+    def analyze_log(self, log_content: str, query: str = "") -> str:
+        prompt = (
+            f"Analyze the following log excerpt and identify the root cause of the error.\n"
+            f"Query: {query}\n\n"
+            f"Log Content:\n{log_content}\n\n"
+            "Provide a concise summary of the error and a potential fix."
+        )
+        return self._generate(prompt)
 
 def get_provider(provider_name: str) -> AIProvider:
     if provider_name.lower() == "ollama":

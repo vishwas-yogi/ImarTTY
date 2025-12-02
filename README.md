@@ -4,56 +4,6 @@ A modern, AI-powered terminal emulator built with Python and Textual. This proje
 
 ![AI Terminal Demo](https://via.placeholder.com/800x400?text=AI+Terminal+Demo+Placeholder)
 
-## Features
-
--   **Standard Terminal Capabilities**: Execute shell commands (`ls`, `grep`, `git`, etc.) with real-time streaming output.
--   **Persistent History**: Commands are saved across sessions. Use **Up/Down** arrows to navigate or type `/history` to view recent commands.
--   **Built-in Navigation**: Supports `cd` to navigate directories and `exit` to close the session.
--   **AI Command Suggestions**: Type `? <query>` to ask the AI for a command (e.g., `? find all large files`).
--   **Modern TUI**: Built on [Textual](https://textual.textualize.io/) for a rich, responsive terminal user interface.
-
-## Installation
-
-You can install ImarTTY directly from the source:
-
-```bash
-git clone https://github.com/yourusername/imarTty.git
-cd imarTty
-pip install .
-```
-
-Alternatively, for development:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-## Configuration
-
-Create a `.env` file for your API keys:
-```env
-GEMINI_API_KEY=your_api_key_here
-```
-
-Customize the app via `config.yaml`:
-
-```yaml
-theme: default
-ai_provider: gemini  # Options: gemini, ollama
-history_file: ~/.imartty_history.db
-```
-
-### Local LLM (Ollama)
-To use a local model like Llama 3:
-1. Install [Ollama](https://ollama.com/).
-2. Run `ollama run llama3`.
-3. Set `ai_provider: ollama` in `config.yaml`.
-
-## Usage
-
-Run the application:
 
 ```bash
 imartty
@@ -73,6 +23,23 @@ The AI will populate the input box with the suggested command (e.g., `git reset 
 ### AI Shortcuts
 - **Ctrl+F**: **Fix Error**. If a command fails, press this to ask AI for a fix.
 - **Ctrl+E**: **Explain Command**. Press this to get an explanation of the last executed command.
+- **AI Provider**: `utils/ai.py` handles communication with Gemini or Ollama.
+
+## 🗺️ Roadmap (Phase 3 Ideas)
+
+- **Git Integration**: `? commit` to automatically generate commit messages based on `git diff`.
+- **Interactive TUI**: A dedicated "Analysis Mode" screen with syntax highlighting and chat.
+- **Config UI**: Edit settings and API keys directly within the application.
+- **Plugin System**: Allow custom Python scripts to extend ImarTTY's capabilities.
+- **Smart Suggestions**: `? run tests` will suggest `pytest` for Python or `npm test` for Node, based on your actual files.
+
+### 🛡️ Robust & Scalable
+- **Smart Output Handling**: Automatically manages memory by keeping a rolling buffer of the last 1MB of command output. Run `docker compose` or long builds without fear.
+- **Large File Support**: The `/analyze` command intelligently reads the tail of massive log files (>100MB), ensuring you get the most recent errors without crashing.
+
+### 🕵️ Log Analysis & The Investigator (New!)
+Debug faster by letting ImarTTY analyze your logs and command outputs.
+- **`/analyze <file>`**: Scans a log file, finds the root cause error, and generates a summary.
 
 ### History
 - Press **Up/Down** arrows to cycle through previous commands.
