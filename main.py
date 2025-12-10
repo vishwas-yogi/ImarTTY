@@ -10,6 +10,9 @@ from utils.history import HistoryManager
 from utils.history import HistoryManager
 from utils.config import ConfigManager
 from utils.logger import setup_logging, get_logger
+from utils.context import ContextManager
+from utils.log_analyzer import LogAnalyzer
+import pyperclip
 import os
 
 logger = get_logger("main")
@@ -41,12 +44,15 @@ class TerminalApp(App):
         self.history_manager = HistoryManager(
             db_path=self.config_manager.get("history_file")
         )
+        self.context_manager = ContextManager()
+        self.log_analyzer = LogAnalyzer()
         
         # Initialize AI Provider
         self.ai_provider = get_provider(self.config_manager.get("ai_provider", "gemini"))
         
         self.last_command = ""
         self.last_error = ""
+        self.last_command_output = ""
         self.last_exit_code = 0
         
         # Load initial history
@@ -87,6 +93,31 @@ class TerminalApp(App):
             self.show_history()
             return
 
+        # Handle /analyze command
+        if command.startswith("/analyze"):
+            parts = command.split(" ", 2)
+            
+            # Case 1: /analyze (no args) -> Analyze last command output
+            if len(parts) == 1:
+                content_to_analyze = self.last_error if self.last_error else self.last_command_output
+                if not content_to_analyze:
+                    self.notify("No recent command output to analyze.")
+                    return
+                
+                input_widget.value = "Analyzing last command..."
+                input_widget.disabled = True
+                self.run_string_analysis(content_to_analyze, "Last Command Output")
+                return
+
+            # Case 2: /analyze <file> [query]
+            file_path = parts[1]
+            query = parts[2] if len(parts) > 2 else ""
+            
+            input_widget.value = "Analyzing log..."
+            input_widget.disabled = True
+            self.run_log_analysis(file_path, query)
+            return
+
         # Clear input
         input_widget.value = ""
 
@@ -103,7 +134,8 @@ class TerminalApp(App):
     @work(exclusive=True, thread=True)
     def run_ai_query(self, query: str) -> None:
         """Runs the AI query in a background thread worker."""
-        suggestion = self.ai_provider.get_command_suggestion(query)
+        context = self.context_manager.get_project_context(os.getcwd())
+        suggestion = self.ai_provider.get_command_suggestion(query, context)
         self.call_from_thread(self.update_input_with_suggestion, suggestion)
 
     def update_input_with_suggestion(self, command: str) -> None:
@@ -135,6 +167,7 @@ class TerminalApp(App):
         
         self.last_command = command
         self.last_exit_code = exit_code
+        self.last_command_output = full_output # Store full output for analysis
         self.last_error = full_output if exit_code != 0 else ""
 
         if exit_code != 0:
@@ -170,7 +203,8 @@ class TerminalApp(App):
             return
 
         self.notify("Asking AI for a fix...")
-        suggestion = self.ai_provider.fix_command(self.last_command, self.last_error)
+        context = self.context_manager.get_project_context(os.getcwd())
+        suggestion = self.ai_provider.fix_command(self.last_command, self.last_error, context)
         self.call_from_thread(self.update_input_with_suggestion, suggestion)
 
     @work(exclusive=True, thread=True)
@@ -181,7 +215,8 @@ class TerminalApp(App):
             return
 
         self.notify("Asking AI for explanation...")
-        explanation = self.ai_provider.explain_command(self.last_command)
+        context = self.context_manager.get_project_context(os.getcwd())
+        explanation = self.ai_provider.explain_command(self.last_command, context)
         
         self.call_from_thread(self.show_explanation, explanation)
 
@@ -191,6 +226,87 @@ class TerminalApp(App):
         panel = f"[bold yellow]AI Explanation:[/bold yellow]\n{explanation}\n"
         output_container.mount(Static(panel, classes="output-line"))
         output_container.scroll_end(animate=False)
+
+    @work(exclusive=True, thread=True)
+    def run_log_analysis(self, file_path: str, query: str) -> None:
+        """Runs the log analysis in background."""
+        summary, handoff_prompt = self.log_analyzer.analyze_file(file_path, query)
+        
+        # If we have a handoff prompt, ask AI to summarize the chunk too
+        ai_summary = ""
+        if handoff_prompt:
+            # Extract the chunk from the prompt for the AI to analyze
+            # This is a bit of a hack, ideally LogAnalyzer returns the chunk directly
+            chunk_start = handoff_prompt.find("```text") + 7
+            chunk_end = handoff_prompt.find("```", chunk_start)
+            if chunk_start > 6 and chunk_end > chunk_start:
+                chunk = handoff_prompt[chunk_start:chunk_end]
+                ai_summary = self.ai_provider.analyze_log(chunk, query)
+
+        self.call_from_thread(self.show_analysis_result, summary, ai_summary, handoff_prompt)
+
+    @work(exclusive=True, thread=True)
+    def run_string_analysis(self, content: str, source_name: str) -> None:
+        """Runs string analysis in background."""
+        summary, handoff_prompt = self.log_analyzer.analyze_string(content, source_name)
+        
+        # AI Summary logic (duplicated for now, could be refactored)
+        ai_summary = ""
+        if handoff_prompt:
+            chunk_start = handoff_prompt.find("```text") + 7
+            chunk_end = handoff_prompt.find("```", chunk_start)
+            if chunk_start > 6 and chunk_end > chunk_start:
+                chunk = handoff_prompt[chunk_start:chunk_end]
+                ai_summary = self.ai_provider.analyze_log(chunk)
+
+        self.call_from_thread(self.show_analysis_result, summary, ai_summary, handoff_prompt)
+
+    def show_analysis_result(self, summary: str, ai_summary: str, handoff_prompt: str) -> None:
+        """Displays the analysis result and copy button."""
+        input_widget = self.query_one("#command-input", HistoryInput)
+        input_widget.disabled = False
+        input_widget.value = ""
+        input_widget.focus()
+        
+        output_container = self.query_one("#output-container", VerticalScroll)
+        
+        # 1. Show System Summary
+        output_container.mount(Static(f"[bold blue]Log Analysis:[/bold blue] {summary}", classes="output-line"))
+        
+        # 2. Show AI Insight (if available)
+        if ai_summary:
+            output_container.mount(Static(f"[bold yellow]AI Insight:[/bold yellow]\n{ai_summary}", classes="output-line"))
+
+        # 3. Show Copyable Handoff Prompt
+        if handoff_prompt:
+            container = Static(classes="handoff-container")
+            # Mount the container to the output FIRST
+            output_container.mount(container)
+            
+            # Then mount children TO the container
+            container.mount(Static("[bold]Agent Handoff Prompt (Copy this):[/bold]", classes="handoff-header"))
+            
+            # The prompt text
+            prompt_widget = Static(handoff_prompt, classes="handoff-content")
+            container.mount(prompt_widget)
+            
+            # Copy Button
+            from textual.widgets import Button
+            btn = Button("Copy to Clipboard", variant="primary", id="copy-btn")
+            btn.prompt_text = handoff_prompt 
+            container.mount(btn)
+        
+        output_container.scroll_end(animate=False)
+
+    def on_button_pressed(self, event: "Button.Pressed") -> None:
+        if event.button.id == "copy-btn":
+            text = getattr(event.button, "prompt_text", "")
+            if text:
+                try:
+                    pyperclip.copy(text)
+                    self.notify("Copied to clipboard!")
+                except Exception as e:
+                    self.notify(f"Copy failed: {e}")
 
 if __name__ == "__main__":
     app = TerminalApp()
